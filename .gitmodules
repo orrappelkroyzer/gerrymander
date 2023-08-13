@@ -1,0 +1,6 @@
+[submodule "utils"]
+	path = utils
+	url = https://github.com/orrappelkroyzer/utils.git
+[submodule "create_db_tools"]
+	path = create_db_tools
+	url = https://github.com/orrappelkroyzer/create_db_tools.git
