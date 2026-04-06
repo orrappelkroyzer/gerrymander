@@ -1,6 +1,6 @@
 import os, sys
 from pathlib import Path
-local_python_path = os.path.sep.join(__file__.split(os.path.sep)[:-2])
+local_python_path = os.path.sep.join(__file__.split(os.path.sep)[:-1])
 if local_python_path not in sys.path:
     sys.path.append(local_python_path)
 
@@ -33,14 +33,13 @@ warnings.filterwarnings("ignore", category=pd.errors.DtypeWarning)
 
 def read_data(year, include_uncontested=True):
     if year == 2022:
-        house_by_cd_and_county = process_2022_elections(include_uncontested)
+        house_by_cd_and_county = process_2022_elections(house_raw=True, include_uncontested=False)
         pres_by_cd_and_county = None
 
     elif year == 2020:
         house_by_cd_and_county = process_2020_house_elections(include_uncontested)
         pres_by_county, pres_by_cd, pres_cd_share_in_county, pres_by_cd_and_county, pres_presidential_votes_with_cd = process_2020_elections(with_cd=True)
-        pres_by_cd_and_county = pres_by_cd_and_county.rename(columns={'2020 Votes' : 'Votes',
-                                                                       '2020 Margin (%, Trump over Biden)' : 'R-D'})
+        pres_by_cd_and_county = pres_by_cd_and_county.rename(columns={'Margin': 'R-D'})
         pres_by_cd_and_county.loc[:, 'votes_margin'] = pres_by_cd_and_county.loc[:, 'R-D'] * pres_by_cd_and_county.loc[:, 'Votes']
         
     elif year == 2018:
@@ -49,10 +48,13 @@ def read_data(year, include_uncontested=True):
     elif year == 2016:
         house_by_cd_and_county = process_2016_house_elections(include_uncontested)
         pres_by_county, pres_by_cd, pres_by_cd_and_county = process_2016_elections(with_cd=True)
+        pres_by_cd_and_county = pres_by_cd_and_county.rename(columns={'Margin': 'R-D'})
         pres_by_cd_and_county.loc[:, 'votes_margin'] = pres_by_cd_and_county.loc[:, 'R-D'] * pres_by_cd_and_county.loc[:, 'Votes']
     
-    house_by_cd_and_county = house_by_cd_and_county[['CD', 'FIPS', 'R-D', 'Votes']]
-    house_by_cd_and_county.loc[:, 'votes_margin'] = house_by_cd_and_county.loc[:, 'R-D'] * house_by_cd_and_county.loc[:, 'Votes']
+    house_by_cd_and_county = house_by_cd_and_county.rename(columns={'Margin': 'R-D'})
+    house_by_cd_and_county['votes_margin'] = house_by_cd_and_county['R-D'] * house_by_cd_and_county['Votes']
+    house_by_cd_and_county = house_by_cd_and_county.groupby(['CD', 'FIPS'])[['votes_margin', 'Votes']].sum().reset_index()
+    house_by_cd_and_county['R-D'] = house_by_cd_and_county['votes_margin'] / house_by_cd_and_county['Votes']
     
     return house_by_cd_and_county, pres_by_cd_and_county
 
@@ -148,12 +150,12 @@ def main():
         
     for name, l in {'house' : house_and_president_by_cd_and_county_list[0],
                     'president' : house_and_president_by_cd_and_county_list[1]}.items():
-        fn = Path(config['db_dir']) / f'gerrymandering_{name}.csv'
+        fn = Path(config['db_dir']) / 'gerrymandering' / f'gerrymandering_{name}.csv'
         logger.info(f"Writing file to {fn}")
         by_cd_and_county = pd.concat(l)
         by_cd_and_county.to_csv(fn, index=False)
         df = add_geometry(by_cd_and_county)
-        fn = Path(config['db_dir']) / f'gerrymandering_{name}.geojson'
+        fn = Path(config['db_dir']) / 'gerrymandering' / f'gerrymandering_{name}.geojson'
         logger.info(f"Writing file to {fn}")
         df.to_csv(fn, index=False)
         gpd.GeoDataFrame(df).to_file(fn, driver='GeoJSON')
